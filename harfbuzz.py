@@ -6,7 +6,7 @@
 #     Qahirah <https://github.com/ldo/qahirah> -- binding for Cairo
 #     PyBidi <https://github.com/ldo/pybidi> -- binding for FriBidi
 #
-# Python adaptation copyright © 2016, 2017 Lawrence D'Oliveiro,
+# Python adaptation copyright © 2016-2018 Lawrence D'Oliveiro,
 # based on C original by Behdad Esfahbod and others.
 #
 # This library is free software; you can redistribute it and/or
@@ -86,11 +86,22 @@ class HARFBUZZ :
     tag_t = ct.c_uint
 
     def TAG(*args) :
-        "creates a tag_t from four byte values or a bytes value of length 4."
+        "creates a tag_t from four byte values or a bytes or str value of length 4."
         if len(args) == 4 :
             c1, c2, c3, c4 = args
         elif len(args) == 1 :
-            c1, c2, c3, c4 = tuple(args[0])
+            arg = args[0]
+            if isinstance(arg, (bytes, bytearray)) :
+                c1, c2, c3, c4 = tuple(arg)
+            elif isinstance(arg, str) :
+                args = tuple(ord(c) for c in arg)
+                if len(args) != 4 or not all(i < 128 for i in args) :
+                    raise TypeError("TAG string must be 4 ASCII chars in [0 .. 255]")
+                #end if
+                c1, c2, c3, c4 = args
+            else :
+                raise TypeError("TAG arg must be bytes or string")
+            #end if
         else :
             raise TypeError("wrong nr of TAG args")
         #end if
@@ -800,7 +811,7 @@ HB = HARFBUZZ # if you prefer
 # Internal class-construction helpers
 #-
 
-def def_struct_class(name, ctname, conv = None, extra = None) :
+def def_struct_class(name, ctname, conv = None, extra = None, init_defaults = None) :
     # defines a class with attributes that are a straightforward mapping
     # of a ctypes struct. Optionally includes extra members from extra
     # if specified.
@@ -812,6 +823,13 @@ def def_struct_class(name, ctname, conv = None, extra = None) :
         __slots__ = tuple(field[0] for field in ctstruct._fields_) # to forestall typos
 
         def __init__(self, *args, **kwargs) :
+            if init_defaults != None :
+                for field in init_defaults :
+                    if kwargs.get(field, None) == None :
+                        kwargs[field] = init_defaults[field]
+                    #end if
+                #end if
+            #end if
             for field in self.__slots__ :
                 if field in kwargs :
                     setattr(self, field, kwargs[field])
@@ -1005,14 +1023,11 @@ def def_immutable(celf, hb_query, hb_set) :
 # Useful stuff
 #-
 
-def seq_to_ct(seq, ct_type, conv = None, zeroterm = False) :
+def seq_to_ct(seq, ct_type, conv = lambda x : x, zeroterm = False) :
     "extracts the elements of a Python sequence value into a ctypes array" \
     " of type ct_type, optionally applying the conv function to each value."
-    if conv == None :
-        conv = lambda x : x
-    #end if
-    nr_elts = len(seq) + int(zeroterm)
-    result = (nr_elts * ct_type)()
+    nr_elts = len(seq)
+    result = ((nr_elts + int(zeroterm)) * ct_type)()
     for i in range(nr_elts) :
         result[i] = conv(seq[i])
     #end for
@@ -2796,12 +2811,13 @@ class Buffer :
             else :
                 pos = qahirah.Vector(0, 0)
             #end if
+            flip = qahirah.Vector(1, -1)
             for i in range(len(glyph_infos)) :
                 result.append \
                   (
-                    qahirah.Glyph(glyph_infos[i].codepoint, pos + qahirah.Vector(1, -1) * glyph_positions[i].offset)
+                    qahirah.Glyph(glyph_infos[i].codepoint, pos + flip * glyph_positions[i].offset)
                   )
-                pos += qahirah.Vector(1, -1) * glyph_positions[i].advance
+                pos += flip * glyph_positions[i].advance
             #end for
             return \
                 (result, pos)
@@ -5023,7 +5039,12 @@ Feature = def_struct_class \
   (
     name = "Feature",
     ctname = "feature_t",
-    extra = FeatureExtra
+    extra = FeatureExtra,
+    init_defaults = dict
+      (
+        start = 0,
+        end = 0xFFFFFFFF,
+      )
   )
 del FeatureExtra
 
