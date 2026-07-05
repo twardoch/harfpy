@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Smoke test (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.9", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # hatch-vcs needs full history/tags for versioning
+
+      - name: Install HarfBuzz (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libharfbuzz0b
+
+      - name: Install HarfBuzz (macOS)
+        if: runner.os == 'macOS'
+        run: brew install harfbuzz
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package
+        run: python -m pip install .
+
+      - name: Import and shape smoke test
+        env:
+          # Homebrew installs the dylib outside the default loader path.
+          DYLD_LIBRARY_PATH: /opt/homebrew/lib:/usr/local/lib
+        run: |
+          python - <<'PY'
+          import harfbuzz as hb
+          HB = hb.HARFBUZZ
+          print("HarfBuzz version:", hb.version_string())
+          buf = hb.Buffer.create()
+          buf.add_str("Hello, world!")
+          buf.guess_segment_properties()
+          assert buf.direction and buf.script, "segment properties not inferred"
+          print("Buffer OK:", buf.direction, buf.script)
+          PY

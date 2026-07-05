@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "harfpy"
+dynamic = ["version"]
+description = "Pure-Python ctypes bindings for the HarfBuzz text-shaping library"
+readme = "README.md"
+requires-python = ">=3.7"
+license = "LGPL-2.1-or-later"
+license-files = ["COPYING"]
+authors = [
+    { name = "Lawrence D'Oliveiro", email = "ldo@geek-central.gen.nz" },
+]
+maintainers = [
+    { name = "Adam Twardoch", email = "adam+github@twardoch.com" },
+]
+keywords = ["harfbuzz", "text-shaping", "opentype", "fonts", "ctypes", "typography"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Text Processing :: Fonts",
+]
+
+[project.urls]
+Homepage = "https://github.com/twardoch/harfpy"
+Upstream = "https://gitlab.com/ldo/harfpy"
+
+[project.optional-dependencies]
+# ldo's companion bindings, imported opportunistically by harfbuzz.py.
+# Neither is on PyPI; install from their upstream repos if you need them.
+freetype = ["freetype2"]
+cairo = ["qahirah"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["harfbuzz.py"]
+
+[tool.hatch.build.targets.sdist]
+include = ["harfbuzz.py", "README.md", "COPYING", "CHANGELOG.md"]
